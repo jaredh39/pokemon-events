@@ -15,8 +15,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const SEEN_PATH = path.join(ROOT, 'state', 'seen.json');
-const DATA_PATH = path.join(ROOT, 'site', 'data.json');
+// Overridable so the state-safety behaviour can be tested against fixtures.
+const SEEN_PATH = process.env.NOTIFY_STATE ?? path.join(ROOT, 'state', 'seen.json');
+const DATA_PATH = process.env.NOTIFY_DATA ?? path.join(ROOT, 'site', 'data.json');
 
 // Validated categorical palette, as integers for Discord's embed colour.
 const COLOR = { prerelease: 0x1baf7a, cup: 0x2a78d6, challenge: 0xeb6834, mixed: 0x2a78d6 };
@@ -151,24 +152,37 @@ async function main() {
     if (date >= data.from) next[guid] = date;
   }
 
-  await mkdir(path.dirname(SEEN_PATH), { recursive: true });
-  await writeFile(SEEN_PATH, `${JSON.stringify(next, null, 0)}\n`);
+  const persist = async () => {
+    await mkdir(path.dirname(SEEN_PATH), { recursive: true });
+    await writeFile(SEEN_PATH, `${JSON.stringify(next, null, 0)}\n`);
+  };
 
   if (!seen) {
+    await persist();
     log(`Seeded notification state with ${watched.length} existing events (no alerts sent on first run).`);
     return;
   }
 
   log(`Watching ${watched.length} events; ${fresh.length} new since last run.`);
-  if (!fresh.length) return;
+  if (!fresh.length) {
+    await persist(); // still worth pruning events that have now passed
+    return;
+  }
 
+  // State must never advance past an alert that was not delivered, or the event
+  // is swallowed permanently. An unset webhook is a configuration error, not a
+  // reason to forget: leave the state alone so these alert on the next run.
   const webhook = process.env.DISCORD_WEBHOOK;
   if (!webhook) {
-    log('DISCORD_WEBHOOK not set -- state updated, no message sent.');
+    log(`DISCORD_WEBHOOK is empty or unset. ${fresh.length} new event(s) left unsent;`);
+    log('state NOT advanced, so they will alert once the secret is configured.');
+    for (const e of fresh) log(`  pending: ${e.date} ${LABEL[e.category]} — ${e.venue}`);
+    process.exitCode = 1;
     return;
   }
 
   await send(webhook, fresh, notify.dashboardUrl);
+  await persist();
   log(`Posted ${fresh.length} new event(s) to Discord.`);
   for (const e of fresh) log(`  ${e.date} ${LABEL[e.category]} — ${e.venue}`);
 }

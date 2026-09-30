@@ -108,8 +108,14 @@ and is committed by CI each run. Entries are pruned once the event is in the
 past, so it cannot grow without bound (currently ~2 KB). Two deliberate details:
 
 - **The first run seeds silently.** Without this it would fire ~44 alerts at once.
-- **State is written after the post succeeds**, so a failed Discord call cannot
-  mark events as seen and swallow them permanently.
+- **State advances only after Discord accepts the post.** If the webhook is
+  missing, empty, or returns an error, the state file is left untouched and the
+  step exits non-zero, so the same alerts retry on the next run. Getting this
+  wrong once already swallowed two real alerts, so `scripts/notify.test.mjs`
+  pins all four paths: unsent, delivered, rejected, and first-run seeding.
+
+The notify step is `continue-on-error` — a Discord misconfiguration should never
+block the dashboard deploy. It shows as a red step while the run still succeeds.
 
 Pushes made with `GITHUB_TOKEN` do not re-trigger workflows, so the state commit
 cannot loop. A useful side effect: those commits keep the repo active, which

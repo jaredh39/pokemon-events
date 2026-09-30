@@ -52,7 +52,11 @@ jobs:
         with:
           path: site
 
+      # A Discord misconfiguration must not block the dashboard deploy. notify
+      # leaves state untouched when it cannot deliver, so a failed run simply
+      # retries the same alerts next time; the red step makes it visible.
       - name: Notify new events
+        continue-on-error: true
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
         run: node scripts/notify.mjs
