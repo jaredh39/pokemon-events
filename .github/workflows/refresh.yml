@@ -1,0 +1,60 @@
+name: Refresh event data
+
+on:
+  schedule:
+    # Every 6 hours. The dashboard warns if the data is more than 26 hours old,
+    # so a couple of consecutive failures are visible without being noisy.
+    - cron: '0 2,8,14,20 * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; queue instead of cancelling, so a scheduled run
+# cannot discard a manual one mid-flight.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test timestamp handling
+        run: npm test
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Collect events
+        run: node scripts/collect.mjs
+
+      # collect.mjs throws rather than writing an empty snapshot, so reaching
+      # this step means site/data.json holds a real result.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: collect
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

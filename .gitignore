@@ -1,0 +1,4 @@
+node_modules/
+site/data.json
+.DS_Store
+.claude/

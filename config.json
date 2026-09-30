@@ -1,0 +1,27 @@
+{
+  "radiusMiles": 25,
+  "windowDays": 60,
+  "product": "tcg",
+  "defaultTypes": ["cup", "challenge", "prerelease", "league"],
+  "metros": [
+    {
+      "id": "bay-area",
+      "label": "Bay Area",
+      "sublabel": "25 mi from Cupertino, CA",
+      "query": "Cupertino, CA, USA",
+      "lat": 37.3229978,
+      "lon": -122.0321823,
+      "timezone": "America/Los_Angeles"
+    },
+    {
+      "id": "seattle",
+      "label": "Seattle",
+      "sublabel": "25 mi from central Seattle",
+      "_note": "The locator's autocomplete only accepts cities, so a bare ZIP (98109) returns no suggestion and cannot be selected. Seattle's centroid sits ~2 mi south of 98109, which is immaterial against a 25 mi radius.",
+      "query": "Seattle, WA",
+      "lat": 47.6062,
+      "lon": -122.3321,
+      "timezone": "America/Los_Angeles"
+    }
+  ]
+}

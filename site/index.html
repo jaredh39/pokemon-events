@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Play! Pokémon TCG Events</title>
+<style>
+  /* Light is the base definition; dark redefines the same roles under both the
+     OS setting and the explicit toggle, so the toggle wins in either direction.
+     Categorical hues are the validated reference palette (slots 1-3). */
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f3f0;
+    --surface-1: #fcfcfb;
+    --surface-2: #eceae5;
+    --border:    #dcdad3;
+    --border-strong: #c3c0b6;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #7a7873;
+
+    --cat-cup:        #2a78d6;
+    --cat-challenge:  #eb6834;
+    --cat-prerelease: #1baf7a;
+
+    --accent: #2a78d6;
+    --warn-bg: #fdf3d8; --warn-fg: #6b4e00; --warn-bd: #e3c76a;
+    --crit-bg: #fbe3e3; --crit-fg: #8a1f1f; --crit-bd: #e09a9a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --surface-2: #242423;
+      --border:    #343432;
+      --border-strong: #4a4a46;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #8e8d84;
+
+      --cat-cup:        #3987e5;
+      --cat-challenge:  #d95926;
+      --cat-prerelease: #199e70;
+
+      --accent: #3987e5;
+      --warn-bg: #3a2f10; --warn-fg: #f0d68a; --warn-bd: #6b5a20;
+      --crit-bg: #3d1c1c; --crit-fg: #f2a6a6; --crit-bd: #6e3030;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-0: #121211;
+    --surface-1: #1a1a19;
+    --surface-2: #242423;
+    --border:    #343432;
+    --border-strong: #4a4a46;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #8e8d84;
+
+    --cat-cup:        #3987e5;
+    --cat-challenge:  #d95926;
+    --cat-prerelease: #199e70;
+
+    --accent: #3987e5;
+    --warn-bg: #3a2f10; --warn-fg: #f0d68a; --warn-bd: #6b5a20;
+    --crit-bg: #3d1c1c; --crit-fg: #f2a6a6; --crit-bd: #6e3030;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--surface-0);
+    color: var(--text-primary);
+    font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+
+  /* ---- header ---- */
+  header { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; justify-content: space-between; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+  .sub { color: var(--text-secondary); font-size: 13px; margin-top: 2px; }
+  .theme-btn {
+    background: var(--surface-1); color: var(--text-secondary);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 10px; font-size: 13px; cursor: pointer;
+  }
+  .theme-btn:hover { border-color: var(--border-strong); color: var(--text-primary); }
+
+  /* ---- freshness ---- */
+  .freshness {
+    margin: 16px 0 0; padding: 10px 14px; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--surface-1);
+    color: var(--text-secondary); font-size: 13px;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  }
+  .freshness .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--cat-prerelease); flex: none; }
+  .freshness.stale { background: var(--warn-bg); border-color: var(--warn-bd); color: var(--warn-fg); }
+  .freshness.stale .dot { background: currentColor; }
+  .freshness.dead { background: var(--crit-bg); border-color: var(--crit-bd); color: var(--crit-fg); }
+  .freshness.dead .dot { background: currentColor; }
+  .freshness b { font-weight: 600; }
+
+  /* ---- stat tiles ---- */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; margin: 16px 0 0; }
+  .tile {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .tile .n { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; line-height: 1.1; }
+  .tile .k { font-size: 12px; color: var(--text-secondary); margin-top: 3px; display: flex; align-items: center; gap: 6px; }
+  .swatch { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+
+  /* ---- controls ---- */
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 20px 0 8px; }
+  .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 2px; }
+  .seg button {
+    border: 0; background: transparent; color: var(--text-secondary);
+    padding: 6px 12px; border-radius: 7px; font-size: 13px; cursor: pointer; font-weight: 500;
+  }
+  .seg button[aria-pressed="true"] { background: var(--surface-1); color: var(--text-primary); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary);
+    border-radius: 999px; padding: 5px 11px; font-size: 13px; cursor: pointer; font-weight: 500;
+  }
+  .chip[aria-pressed="true"] { border-color: var(--border-strong); color: var(--text-primary); background: var(--surface-2); }
+  .chip[aria-pressed="false"] { opacity: .55; }
+  .chip .swatch { width: 8px; height: 8px; border-radius: 2px; }
+  input[type="search"] {
+    flex: 1 1 200px; min-width: 160px;
+    background: var(--surface-1); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 9px; padding: 7px 11px; font-size: 14px; font-family: inherit;
+  }
+  input[type="search"]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .count { color: var(--text-muted); font-size: 13px; margin: 4px 0 18px; }
+
+  /* ---- list ---- */
+  .daygroup { margin-bottom: 22px; }
+  .dayhead {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--surface-0); padding: 8px 0 6px;
+    font-size: 13px; font-weight: 650; color: var(--text-secondary);
+    border-bottom: 1px solid var(--border); letter-spacing: .01em;
+  }
+  .dayhead .today { color: var(--accent); }
+  .ev {
+    display: grid; grid-template-columns: 86px 1fr; gap: 12px;
+    padding: 12px 2px; border-bottom: 1px solid var(--border);
+  }
+  .ev.past { opacity: .45; }
+  .ev .time { font-size: 13px; color: var(--text-secondary); font-variant-numeric: tabular-nums; padding-top: 2px; }
+  .ev .venue { font-weight: 600; }
+  .ev .nm { color: var(--text-secondary); font-size: 13.5px; margin-top: 1px; }
+  .ev .meta { color: var(--text-muted); font-size: 12.5px; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+  .ev a { color: var(--accent); }
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 11.5px; font-weight: 650; letter-spacing: .02em; text-transform: uppercase;
+    border: 1px solid var(--border-strong); color: var(--text-secondary);
+    border-radius: 5px; padding: 1px 6px; white-space: nowrap;
+  }
+  .badge .swatch { width: 7px; height: 7px; border-radius: 2px; }
+  .badge.cup        { color: var(--cat-cup);        border-color: var(--cat-cup); }
+  .badge.challenge  { color: var(--cat-challenge);  border-color: var(--cat-challenge); }
+  .badge.prerelease { color: var(--cat-prerelease); border-color: var(--cat-prerelease); }
+  .headline { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  details.desc { margin-top: 6px; }
+  details.desc summary { cursor: pointer; font-size: 12.5px; color: var(--text-muted); }
+  details.desc p { white-space: pre-wrap; font-size: 13px; color: var(--text-secondary); margin: 6px 0 0; }
+  .empty { color: var(--text-muted); padding: 40px 0; text-align: center; }
+  footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12.5px; }
+  footer a { color: var(--accent); }
+
+  @media (max-width: 560px) {
+    .ev { grid-template-columns: 1fr; gap: 2px; }
+    .ev .time { padding-top: 0; font-weight: 600; color: var(--text-primary); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Play! Pokémon TCG Events</h1>
+      <div class="sub" id="scope">Loading…</div>
+    </div>
+    <button class="theme-btn" id="themeBtn" type="button">Theme</button>
+  </header>
+
+  <div class="freshness" id="freshness"><span class="dot"></span><span id="freshText">Loading…</span></div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="controls">
+    <div class="seg" id="metroSeg"></div>
+    <div class="seg" id="rangeSeg"></div>
+  </div>
+  <div class="controls">
+    <div class="chips" id="typeChips"></div>
+    <input type="search" id="q" placeholder="Filter by venue, city or event name…" autocomplete="off">
+  </div>
+
+  <div class="count" id="count"></div>
+  <div id="list"></div>
+
+  <footer>
+    Source: the official <a href="https://events.pokemon.com/en-us/events" target="_blank" rel="noopener">Play! Pokémon Event Locator</a>.
+    Only sanctioned Pokémon TCG events are shown. Times are local to the venue.
+    Always confirm with the store before travelling — organisers do change or cancel events.
+  </footer>
+</div>
+
+<script>
+const TYPES = [
+  { id: 'cup',        label: 'Cup',        color: 'var(--cat-cup)' },
+  { id: 'challenge',  label: 'Challenge',  color: 'var(--cat-challenge)' },
+  { id: 'prerelease', label: 'Prerelease', color: 'var(--cat-prerelease)' },
+  { id: 'league',     label: 'League',     color: 'var(--text-muted)' },
+  { id: 'friendly',   label: 'Friendly',   color: 'var(--text-muted)' },
+];
+const RANGES = [
+  { id: '7',  label: 'Next 7 days',  days: 7  },
+  { id: '30', label: 'Next 30 days', days: 30 },
+  { id: '0',  label: 'Everything',   days: 0  },
+];
+
+const state = { data: null, metro: null, types: new Set(), range: '30', q: '' };
+
+/* ---------- formatting helpers ---------- */
+// Start times are naive venue-local wall clock (see collect.mjs), so they are
+// parsed and rendered as-is, never shifted through a timezone.
+const pad = (n) => String(n).padStart(2, '0');
+function todayStr() { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+function addDays(str, n) {
+  const [y, m, d] = str.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + n);
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
+}
+function fmtDay(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+}
+function fmtTime(iso) {
+  const hm = iso.slice(11, 16);
+  if (!hm) return '';
+  let [h, m] = hm.split(':').map(Number);
+  const ap = h >= 12 ? 'PM' : 'AM';
+  h = h % 12 || 12;
+  return `${h}:${pad(m)} ${ap}`;
+}
+function ago(iso) {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 60) return `${Math.max(mins, 0)} min ago`;
+  const h = Math.round(mins / 60);
+  if (h < 24) return `${h} hour${h === 1 ? '' : 's'} ago`;
+  const d = Math.round(h / 24);
+  return `${d} day${d === 1 ? '' : 's'} ago`;
+}
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function titleCase(s) {
+  return String(s || '').toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase()).replace(/\b(Ca|Wa|Usa|Us|Tcg|Glc|Vgc)\b/g, (m) => m.toUpperCase());
+}
+
+/* ---------- freshness ---------- */
+function renderFreshness() {
+  const { generatedAt, failures = [] } = state.data;
+  const hours = (Date.now() - new Date(generatedAt).getTime()) / 3.6e6;
+  const el = document.getElementById('freshness');
+  const txt = document.getElementById('freshText');
+  el.className = 'freshness' + (hours > 72 ? ' dead' : hours > 26 ? ' stale' : '');
+
+  let msg = `Updated <b>${ago(generatedAt)}</b> — ${new Date(generatedAt).toLocaleString()}`;
+  if (hours > 72) msg += ` · <b>This data is stale.</b> The scheduled refresh has not succeeded in over 3 days.`;
+  else if (hours > 26) msg += ` · <b>Refresh may have failed</b> — expected every 12 hours.`;
+  if (failures.length) {
+    msg += ` · <b>Partial run:</b> ${failures.map((f) => esc(f.metro)).join(', ')} failed to collect.`;
+    if (hours <= 26) el.className = 'freshness stale';
+  }
+  txt.innerHTML = msg;
+}
+
+/* ---------- controls ---------- */
+function buildControls() {
+  const metroSeg = document.getElementById('metroSeg');
+  metroSeg.innerHTML = state.data.metros.map((m) =>
+    `<button type="button" data-metro="${esc(m.id)}" aria-pressed="${m.id === state.metro}">${esc(m.label)}</button>`).join('');
+  metroSeg.onclick = (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.metro = b.dataset.metro; sync();
+  };
+
+  const rangeSeg = document.getElementById('rangeSeg');
+  rangeSeg.innerHTML = RANGES.map((r) =>
+    `<button type="button" data-range="${r.id}" aria-pressed="${r.id === state.range}">${esc(r.label)}</button>`).join('');
+  rangeSeg.onclick = (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.range = b.dataset.range; sync();
+  };
+
+  const chips = document.getElementById('typeChips');
+  chips.innerHTML = TYPES.map((t) =>
+    `<button type="button" class="chip" data-type="${t.id}" aria-pressed="${state.types.has(t.id)}">
+       <span class="swatch" style="background:${t.color}"></span>${esc(t.label)}</button>`).join('');
+  chips.onclick = (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    const id = b.dataset.type;
+    state.types.has(id) ? state.types.delete(id) : state.types.add(id);
+    sync();
+  };
+
+  document.getElementById('q').oninput = (e) => { state.q = e.target.value.trim().toLowerCase(); render(); };
+}
+
+function sync() {
+  document.querySelectorAll('#metroSeg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.metro === state.metro));
+  document.querySelectorAll('#rangeSeg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.range === state.range));
+  document.querySelectorAll('#typeChips button').forEach((b) => b.setAttribute('aria-pressed', state.types.has(b.dataset.type)));
+  render();
+}
+
+/* ---------- filtering & render ---------- */
+function visible() {
+  const from = todayStr();
+  const days = RANGES.find((r) => r.id === state.range).days;
+  const to = days ? addDays(from, days) : '9999-12-31';
+  return state.data.events.filter((e) =>
+    e.metro === state.metro &&
+    state.types.has(e.category) &&
+    e.date >= from && e.date <= to &&
+    (!state.q || `${e.venue} ${e.name} ${e.address} ${e.league}`.toLowerCase().includes(state.q))
+  );
+}
+
+function renderTiles(rows) {
+  const venues = new Set(rows.map((r) => r.venue || r.address)).size;
+  const by = (id) => rows.filter((r) => r.category === id).length;
+  const tiles = [
+    { n: rows.length, k: 'events', color: null },
+    { n: venues, k: 'venues', color: null },
+    { n: by('cup'), k: 'Cups', color: 'var(--cat-cup)' },
+    { n: by('challenge'), k: 'Challenges', color: 'var(--cat-challenge)' },
+    { n: by('prerelease'), k: 'Prereleases', color: 'var(--cat-prerelease)' },
+  ];
+  document.getElementById('tiles').innerHTML = tiles.map((t) => `
+    <div class="tile"><div class="n">${t.n}</div>
+      <div class="k">${t.color ? `<span class="swatch" style="background:${t.color}"></span>` : ''}${esc(t.k)}</div></div>`).join('');
+}
+
+function eventHTML(e, isToday) {
+  const t = TYPES.find((x) => x.id === e.category);
+  const started = isToday && fmtTime(e.start) && e.start.slice(11, 16) < new Date().toTimeString().slice(0, 5);
+  const label = titleCase(e.venue) || 'Unknown venue';
+  // League rows carry no event name, so only show one when it adds information.
+  const name = e.name && e.name.toLowerCase() !== e.venue.toLowerCase() ? e.name : '';
+  const city = titleCase((e.address.split(',')[1] || '').trim());
+
+  const meta = [];
+  if (e.admission) meta.push(esc(e.admission));
+  if (city) meta.push(esc(city));
+  if (e.registrationEnd) meta.push(`reg. closes ${esc(fmtTime(e.registrationEnd))}`);
+  if (e.website) meta.push(`<a href="${esc(e.website)}" target="_blank" rel="noopener">event link</a>`);
+  if (e.address) meta.push(`<a href="https://maps.google.com/?q=${encodeURIComponent(e.address)}" target="_blank" rel="noopener">map</a>`);
+
+  return `<div class="ev${started ? ' past' : ''}">
+    <div class="time">${esc(fmtTime(e.start))}</div>
+    <div>
+      <div class="headline">
+        <span class="badge ${esc(e.category)}">${t && t.color.startsWith('var(--cat') ? `<span class="swatch" style="background:${t.color}"></span>` : ''}${esc(t ? t.label : e.typeName)}</span>
+        <span class="venue">${esc(label)}</span>
+      </div>
+      ${name ? `<div class="nm">${esc(name)}</div>` : ''}
+      <div class="meta">${meta.join('<span>·</span>')}</div>
+      ${e.details ? `<details class="desc"><summary>Details</summary><p>${esc(e.details)}</p></details>` : ''}
+    </div>
+  </div>`;
+}
+
+function render() {
+  const rows = visible();
+  renderTiles(rows);
+
+  const today = todayStr();
+  document.getElementById('count').textContent =
+    `${rows.length} event${rows.length === 1 ? '' : 's'}` +
+    (state.q ? ` matching “${state.q}”` : '') + '.';
+
+  const groups = new Map();
+  for (const e of rows) {
+    if (!groups.has(e.date)) groups.set(e.date, []);
+    groups.get(e.date).push(e);
+  }
+
+  const list = document.getElementById('list');
+  if (!groups.size) {
+    list.innerHTML = `<div class="empty">No events match these filters.</div>`;
+    return;
+  }
+  list.innerHTML = [...groups.entries()].map(([date, evs]) => `
+    <section class="daygroup">
+      <div class="dayhead">${date === today ? '<span class="today">Today · </span>' : ''}${esc(fmtDay(date))}</div>
+      ${evs.map((e) => eventHTML(e, date === today)).join('')}
+    </section>`).join('');
+}
+
+/* ---------- theme ---------- */
+(function theme() {
+  const saved = (() => { try { return localStorage.getItem('theme'); } catch { return null; } })();
+  if (saved) document.documentElement.dataset.theme = saved;
+  document.getElementById('themeBtn').onclick = () => {
+    const cur = document.documentElement.dataset.theme
+      || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    const next = cur === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('theme', next); } catch {}
+  };
+})();
+
+/* ---------- boot ---------- */
+fetch('data.json?t=' + Date.now())
+  .then((r) => { if (!r.ok) throw new Error(`data.json returned ${r.status}`); return r.json(); })
+  .then((data) => {
+    state.data = data;
+    state.metro = data.metros[0].id;
+    state.types = new Set(data.defaultTypes || ['cup', 'challenge', 'prerelease', 'league']);
+    document.getElementById('scope').textContent =
+      `Sanctioned TCG events within ${data.radiusMiles} miles · ${data.from} to ${data.to}`;
+    renderFreshness();
+    buildControls();
+    render();
+  })
+  .catch((err) => {
+    document.getElementById('freshness').className = 'freshness dead';
+    document.getElementById('freshText').textContent = `Could not load event data: ${err.message}`;
+    document.getElementById('list').innerHTML = '';
+  });
+</script>
+</body>
+</html>
