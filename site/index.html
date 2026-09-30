@@ -294,8 +294,16 @@ function ago(iso) {
   return `${d} day${d === 1 ? '' : 's'} ago`;
 }
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+// \b counts an apostrophe as a word boundary, which produces "Chris'S Comics".
 function titleCase(s) {
-  return String(s || '').toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase()).replace(/\b(Ca|Wa|Usa|Us|Tcg|Glc|Vgc)\b/g, (m) => m.toUpperCase());
+  return String(s || '').toLowerCase()
+    .replace(/(^|[^a-z'])([a-z])/g, (_, pre, ch) => pre + ch.toUpperCase())
+    .replace(/\b(Ca|Wa|Usa|Us|Tcg|Glc|Vgc)\b/g, (m) => m.toUpperCase());
+}
+// Stores enter admission freehand: "$15", "20.00", "30", "Free Entry".
+function money(a) {
+  const s = String(a || '').trim();
+  return /^\d+(\.\d{1,2})?$/.test(s) ? `$${s}` : s;
 }
 
 /* ---------- freshness ---------- */
@@ -404,8 +412,8 @@ function eventHTML(e, isToday) {
   const city = titleCase((e.address.split(',')[1] || '').trim());
 
   const meta = [];
-  if (e.admission) meta.push(esc(e.admission));
-  else if (e.divisionAdmission) meta.push(esc(Object.entries(e.divisionAdmission).map(([k, v]) => `${k}: ${v}`).join(' / ')));
+  if (e.admission) meta.push(esc(money(e.admission)));
+  else if (e.divisionAdmission) meta.push(esc(Object.entries(e.divisionAdmission).map(([k, v]) => `${k}: ${money(v)}`).join(' / ')));
   if (city) meta.push(esc(city));
   if (e.registrationEnd) meta.push(`reg. closes ${esc(fmtTime(e.registrationEnd))}`);
   if (e.displayId) meta.push(`#${esc(e.displayId)}`);

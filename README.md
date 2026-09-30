@@ -90,6 +90,46 @@ it throws instead of writing an empty `data.json`, so a broken selector can neve
 silently replace good data with an empty dashboard. The previous deploy stays up
 and the dashboard's own freshness banner flags it.
 
+## Discord notifications
+
+`scripts/notify.mjs` posts newly-listed events to a Discord webhook after each
+collection. Configured in `config.json` under `notify` — currently Bay Area
+Prereleases, Cups and Challenges.
+
+**Why "newly listed" and not "registration opened":** `Registration_start` is
+present on only 95 of 580 events, and 83 of those open *the same day as the
+event* — it is the door-registration window, not an advance sign-up. Prereleases,
+by contrast, appear in the feed about 25 days ahead, which is the window in which
+a popular one fills. So the alert fires when an event first appears.
+
+**This is the one piece that keeps state.** Knowing an event is new requires
+remembering what was already seen, so `state/seen.json` maps event guid → date
+and is committed by CI each run. Entries are pruned once the event is in the
+past, so it cannot grow without bound (currently ~2 KB). Two deliberate details:
+
+- **The first run seeds silently.** Without this it would fire ~44 alerts at once.
+- **State is written after the post succeeds**, so a failed Discord call cannot
+  mark events as seen and swallow them permanently.
+
+Pushes made with `GITHUB_TOKEN` do not re-trigger workflows, so the state commit
+cannot loop. A useful side effect: those commits keep the repo active, which
+prevents GitHub from auto-disabling the schedule after 60 days of inactivity.
+
+### Setting it up
+
+1. In Discord: create a server (or use one you own) → a channel → **Edit Channel
+   → Integrations → Webhooks → New Webhook** → *Copy Webhook URL*.
+2. Store it as a repo secret — run this yourself so the URL never passes through
+   a chat log:
+   ```bash
+   gh secret set DISCORD_WEBHOOK --repo jaredh39/pokemon-events
+   ```
+3. On the Discord mobile app, set that channel's notifications to **All Messages**.
+
+Anyone holding the webhook URL can post to that channel, so keep it in the secret
+and out of the repo. To pause alerts, set `notify.enabled` to `false` in
+`config.json`; the collector and dashboard are unaffected.
+
 ## Local development
 
 ```bash

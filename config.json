@@ -3,6 +3,12 @@
   "windowDays": 60,
   "product": "tcg",
   "defaultTypes": ["cup", "challenge", "prerelease", "league"],
+  "notify": {
+    "enabled": true,
+    "metros": ["bay-area"],
+    "categories": ["prerelease", "cup", "challenge"],
+    "dashboardUrl": "https://jaredh39.github.io/pokemon-events/"
+  },
   "metros": [
     {
       "id": "bay-area",
