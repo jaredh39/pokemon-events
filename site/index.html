@@ -69,6 +69,8 @@
   }
 
   * { box-sizing: border-box; }
+  /* Author display rules on .seg/.chips outrank the UA [hidden] rule. */
+  [hidden] { display: none !important; }
   html { -webkit-text-size-adjust: 100%; }
   body {
     margin: 0;
@@ -171,6 +173,30 @@
   details.desc { margin-top: 6px; }
   details.desc summary { cursor: pointer; font-size: 12.5px; color: var(--text-muted); }
   details.desc p { white-space: pre-wrap; font-size: 13px; color: var(--text-secondary); margin: 6px 0 0; }
+  /* pills, tags and the link row */
+  .pill {
+    font-size: 11px; font-weight: 600; letter-spacing: .02em;
+    border: 1px solid var(--border); border-radius: 999px;
+    padding: 1px 7px; color: var(--text-secondary); white-space: nowrap;
+  }
+  .tag { font-size: 11.5px; color: var(--text-muted); border: 1px dashed var(--border-strong); border-radius: 4px; padding: 0 5px; }
+  .links { display: flex; flex-wrap: wrap; gap: 4px 8px; margin-top: 5px; font-size: 12.5px; align-items: center; }
+  .links a { text-decoration: none; }
+  .links a:hover { text-decoration: underline; }
+  .signup {
+    font-weight: 650; border: 1px solid var(--accent); border-radius: 6px;
+    padding: 1px 8px; text-decoration: none !important;
+  }
+  .signup:hover { background: var(--accent); color: var(--surface-1) !important; }
+
+  /* venue directory */
+  .venues { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+  .vcard { background: var(--surface-1); border: 1px solid var(--border); border-radius: 11px; padding: 14px 16px; }
+  .vcard h3 { margin: 0; font-size: 15px; font-weight: 650; }
+  .vcard .addr { color: var(--text-muted); font-size: 12.5px; margin-top: 2px; }
+  .vcard .mix { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 9px; }
+  .vcard .note { color: var(--text-muted); font-size: 11.5px; margin-top: 9px; font-style: italic; }
+  .vcard .nocontact { color: var(--text-muted); font-size: 12.5px; margin-top: 9px; }
   .empty { color: var(--text-muted); padding: 40px 0; text-align: center; }
   footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12.5px; }
   footer a { color: var(--accent); }
@@ -197,6 +223,7 @@
 
   <div class="controls">
     <div class="seg" id="metroSeg"></div>
+    <div class="seg" id="viewSeg"></div>
     <div class="seg" id="rangeSeg"></div>
   </div>
   <div class="controls">
@@ -210,7 +237,10 @@
   <footer>
     Source: the official <a href="https://events.pokemon.com/en-us/events" target="_blank" rel="noopener">Play! Pokémon Event Locator</a>.
     Only sanctioned Pokémon TCG events are shown. Times are local to the venue.
-    Always confirm with the store before travelling — organisers do change or cancel events.
+    <br>
+    <b>Remaining spots are not published by Play! Pokémon</b> — no capacity field exists in their data.
+    Where a <b>Sign up</b> link appears, that page carries the live count; otherwise contact the store.
+    Always confirm before travelling — organisers do change and cancel events.
   </footer>
 </div>
 
@@ -228,7 +258,10 @@ const RANGES = [
   { id: '0',  label: 'Everything',   days: 0  },
 ];
 
-const state = { data: null, metro: null, types: new Set(), range: '30', q: '' };
+// Attributes worth surfacing on a row; the rest ("All Ages", "Adult") are noise.
+const NOTABLE = ['Gym Leader Challenge', 'Beginner Friendly', 'Coaching', 'Trading', 'Drafting'];
+
+const state = { data: null, metro: null, types: new Set(), range: '30', q: '', view: 'events' };
 
 /* ---------- formatting helpers ---------- */
 // Start times are naive venue-local wall clock (see collect.mjs), so they are
@@ -293,6 +326,14 @@ function buildControls() {
     state.metro = b.dataset.metro; sync();
   };
 
+  const viewSeg = document.getElementById('viewSeg');
+  viewSeg.innerHTML = [['events', 'Events'], ['venues', 'Stores']]
+    .map(([id, label]) => `<button type="button" data-view="${id}" aria-pressed="${id === state.view}">${label}</button>`).join('');
+  viewSeg.onclick = (e) => {
+    const b = e.target.closest('button'); if (!b) return;
+    state.view = b.dataset.view; sync();
+  };
+
   const rangeSeg = document.getElementById('rangeSeg');
   rangeSeg.innerHTML = RANGES.map((r) =>
     `<button type="button" data-range="${r.id}" aria-pressed="${r.id === state.range}">${esc(r.label)}</button>`).join('');
@@ -317,8 +358,12 @@ function buildControls() {
 
 function sync() {
   document.querySelectorAll('#metroSeg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.metro === state.metro));
+  document.querySelectorAll('#viewSeg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.view === state.view));
   document.querySelectorAll('#rangeSeg button').forEach((b) => b.setAttribute('aria-pressed', b.dataset.range === state.range));
   document.querySelectorAll('#typeChips button').forEach((b) => b.setAttribute('aria-pressed', state.types.has(b.dataset.type)));
+  // The date range and type chips only shape the event list.
+  document.getElementById('rangeSeg').hidden = state.view === 'venues';
+  document.getElementById('typeChips').hidden = state.view === 'venues';
   render();
 }
 
@@ -360,10 +405,20 @@ function eventHTML(e, isToday) {
 
   const meta = [];
   if (e.admission) meta.push(esc(e.admission));
+  else if (e.divisionAdmission) meta.push(esc(Object.entries(e.divisionAdmission).map(([k, v]) => `${k}: ${v}`).join(' / ')));
   if (city) meta.push(esc(city));
   if (e.registrationEnd) meta.push(`reg. closes ${esc(fmtTime(e.registrationEnd))}`);
-  if (e.website) meta.push(`<a href="${esc(e.website)}" target="_blank" rel="noopener">event link</a>`);
-  if (e.address) meta.push(`<a href="https://maps.google.com/?q=${encodeURIComponent(e.address)}" target="_blank" rel="noopener">map</a>`);
+  if (e.displayId) meta.push(`#${esc(e.displayId)}`);
+
+  // Sign-up first: it is the only place a live spot count exists.
+  const links = [];
+  if (e.registrationSite) links.push(`<a class="signup" href="${esc(e.registrationSite)}" target="_blank" rel="noopener">Sign up ↗</a>`);
+  if (e.website) links.push(`<a href="${esc(e.website)}" target="_blank" rel="noopener">${/discord/i.test(e.website) ? 'Discord' : 'Event page'} ↗</a>`);
+  if (e.address) links.push(`<a href="https://maps.google.com/?q=${encodeURIComponent(e.address)}" target="_blank" rel="noopener">Map</a>`);
+  if (e.phone) links.push(`<a href="tel:${esc(e.phone.replace(/[^\d+]/g, ''))}">${esc(e.phone)}</a>`);
+  if (e.email) links.push(`<a href="mailto:${esc(e.email)}">Email</a>`);
+
+  const tags = (e.attributes || []).filter((a) => NOTABLE.includes(a) && a !== 'Gym Leader Challenge');
 
   return `<div class="ev${started ? ' past' : ''}">
     <div class="time">${esc(fmtTime(e.start))}</div>
@@ -371,15 +426,84 @@ function eventHTML(e, isToday) {
       <div class="headline">
         <span class="badge ${esc(e.category)}">${t && t.color.startsWith('var(--cat') ? `<span class="swatch" style="background:${t.color}"></span>` : ''}${esc(t ? t.label : e.typeName)}</span>
         <span class="venue">${esc(label)}</span>
+        ${e.format ? `<span class="pill">${esc(e.format)}</span>` : ''}
+        ${tags.map((a) => `<span class="tag">${esc(a)}</span>`).join('')}
       </div>
       ${name ? `<div class="nm">${esc(name)}</div>` : ''}
-      <div class="meta">${meta.join('<span>·</span>')}</div>
+      ${meta.length ? `<div class="meta">${meta.join('<span>·</span>')}</div>` : ''}
+      ${links.length ? `<div class="links">${links.join('')}</div>` : ''}
       ${e.details ? `<details class="desc"><summary>Details</summary><p>${esc(e.details)}</p></details>` : ''}
     </div>
   </div>`;
 }
 
+/* ---------- venue directory ---------- */
+// Contacts here are aggregated from every event a venue has run, so they are
+// presented as store-level information rather than attributed to one organiser.
+function venueHTML(v) {
+  const mix = Object.entries(v.byCategory)
+    .sort((a, b) => b[1] - a[1])
+    .map(([id, n]) => {
+      const t = TYPES.find((x) => x.id === id);
+      return `<span class="badge ${esc(id)}">${t && t.color.startsWith('var(--cat') ? `<span class="swatch" style="background:${t.color}"></span>` : ''}${n} ${esc(t ? t.label : id)}</span>`;
+    }).join('');
+
+  // A store's own domain often shows up as both an event site and a sign-up
+  // site. Dedupe by host, preferring the sign-up link since it is actionable.
+  const links = [];
+  const seenHost = new Set();
+  const addSite = (u, cls) => {
+    const h = hostOf(u);
+    if (seenHost.has(h)) return;
+    seenHost.add(h);
+    links.push(`<a ${cls} href="${esc(u)}" target="_blank" rel="noopener">${/discord/i.test(u) ? 'Discord' : esc(h)} ↗</a>`);
+  };
+  for (const r of v.registrationSites) addSite(r, 'class="signup"');
+  for (const w of v.websites) addSite(w, '');
+  for (const p of v.phones) links.push(`<a href="tel:${esc(p.replace(/[^\d+]/g, ''))}">${esc(p)}</a>`);
+  for (const m of v.emails) links.push(`<a href="mailto:${esc(m)}">${esc(m)}</a>`);
+  links.push(`<a href="https://maps.google.com/?q=${encodeURIComponent(v.address)}" target="_blank" rel="noopener">Map</a>`);
+
+  const hasContact = v.websites.length || v.phones.length || v.emails.length || v.registrationSites.length;
+
+  return `<div class="vcard">
+    <h3>${esc(titleCase(v.venue) || 'Unknown venue')}</h3>
+    <div class="addr">${esc(titleCase(v.address))}</div>
+    <div class="mix">${mix}</div>
+    <div class="links">${links.join('')}</div>
+    ${hasContact
+      ? `<div class="note">Contacts collected from this store's own event listings.</div>`
+      : `<div class="nocontact">This store publishes no contact details to Play! Pokémon.</div>`}
+  </div>`;
+}
+
+function hostOf(u) {
+  try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return 'Link'; }
+}
+
+function renderVenues() {
+  const rows = (state.data.venues || []).filter((v) =>
+    v.metro === state.metro &&
+    (!state.q || `${v.venue} ${v.address} ${v.league}`.toLowerCase().includes(state.q)));
+
+  const withContact = rows.filter((v) => v.websites.length || v.phones.length || v.emails.length || v.registrationSites.length).length;
+  document.getElementById('tiles').innerHTML = [
+    { n: rows.length, k: 'stores' },
+    { n: withContact, k: 'with contact info' },
+    { n: rows.reduce((s, v) => s + v.events, 0), k: 'events (60 days)' },
+  ].map((t) => `<div class="tile"><div class="n">${t.n}</div><div class="k">${esc(t.k)}</div></div>`).join('');
+
+  document.getElementById('count').textContent =
+    `${rows.length} store${rows.length === 1 ? '' : 's'} running sanctioned TCG events` + (state.q ? ` matching “${state.q}”` : '') + '.';
+
+  document.getElementById('list').innerHTML = rows.length
+    ? `<div class="venues">${rows.map(venueHTML).join('')}</div>`
+    : `<div class="empty">No stores match this filter.</div>`;
+}
+
 function render() {
+  if (state.view === 'venues') return renderVenues();
+
   const rows = visible();
   renderTiles(rows);
 

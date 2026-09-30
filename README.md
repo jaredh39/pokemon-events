@@ -67,6 +67,24 @@ cities, so `98109` produces no suggestion and cannot be committed. Seattle is
 searched as a city; its centroid is ~2 miles from 98109, which is immaterial
 against a 25-mile radius.
 
+**There is no capacity or "spots remaining" field.** The full per-event key set
+is `Guid, Activity_type, Subtype, Name, Display_id, Products, Category,
+Start_date, Address, Event_website, Registration_start, Registration_end,
+Details, Third_party_registration_website, Contact_information, Admission,
+Activity_division_info, Series, Status, Attributes, ActivityGroup` — nothing
+capacity-shaped anywhere, and the Locations endpoint returns even less
+(`Display_name`, `Address`, `Has_qualifying_activities`). Roughly 10% of events
+mention limits in free-text `Details`. Live spot counts only exist on the
+organiser's own registration page, so the dashboard surfaces
+`Third_party_registration_website` as a prominent **Sign up** link.
+
+**Contacts are aggregated per venue, not copied between events.**
+`Contact_information` is the *organiser's* contact for one event, so propagating
+it across a venue's other events would misattribute people. Instead
+`buildVenues()` collects every distinct phone, email and site seen at a venue and
+the Stores view presents them as venue-level information. That lifts usable
+contact coverage from 19% of events to 49% without asserting anything false.
+
 **An empty run is a failure, not a snapshot.** If the collector gets zero events
 it throws instead of writing an empty `data.json`, so a broken selector can never
 silently replace good data with an empty dashboard. The previous deploy stays up

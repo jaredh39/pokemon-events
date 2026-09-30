@@ -31,6 +31,11 @@ const TYPE_MAP = {
   'Friendly Tournament': 'friendly',
 };
 
+// Category is only set on tournament rows; league play carries the format in
+// its Attributes instead. There is no capacity/spots field anywhere in the
+// payload -- that lives on the organiser's own registration page.
+const FORMAT_MAP = { tcg_std: 'Standard', tcg_lim: 'Limited', tcg_glc: 'GLC' };
+
 const log = (...a) => console.log(...a);
 
 /* ------------------------------------------------------------------ */
@@ -91,6 +96,8 @@ function normalise(item, metro) {
   const activityType = e.Activity_type || '';
   const tz = addr.Timezone || metro.timezone;
   const start = localStart(e.Start_date, activityType, tz);
+  const attributes = (e.Attributes?.List ?? []).map((a) => a?.Display_name).filter(Boolean);
+  const divisions = pickDivisions(e.Activity_division_info);
 
   return {
     guid: e.Guid || '',
@@ -122,7 +129,57 @@ function normalise(item, metro) {
     league: (group.Display_name || '').trim(),
     leagueId: (group.Display_Id || '').trim(),
     status: e.Status || '',
+    // Official event id, useful for looking an event up with the organiser.
+    displayId: (e.Display_id || '').trim(),
+    format: FORMAT_MAP[e.Category] || (attributes.includes('Gym Leader Challenge') ? 'GLC' : ''),
+    attributes,
+    // Per-division pricing, only present on the rare event that sets it.
+    divisionAdmission: divisions,
+    venueKey: `${metro.id}|${(addr.Name || addr.Full_address || '').trim()}`,
   };
+}
+
+// Only worth carrying when a division actually differs from the flat Admission.
+function pickDivisions(info) {
+  const out = {};
+  for (const div of ['Juniors', 'Seniors', 'Masters']) {
+    const a = (info?.[div]?.Admission || '').trim();
+    if (a) out[div] = a;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+// Contact_information is the ORGANISER's contact for one event, not the store's
+// switchboard, so it is never copied onto sibling events. Instead every distinct
+// value seen at a venue is aggregated here and shown as venue-level information,
+// which roughly triples usable coverage without misattributing anyone.
+function buildVenues(events) {
+  const map = new Map();
+  const add = (arr, v) => { if (v && !arr.includes(v)) arr.push(v); };
+
+  for (const e of events) {
+    let v = map.get(e.venueKey);
+    if (!v) {
+      v = {
+        key: e.venueKey, metro: e.metro, venue: e.venue, address: e.address,
+        lat: e.lat, lon: e.lon, league: e.league, leagueId: e.leagueId,
+        phones: [], emails: [], websites: [], registrationSites: [],
+        events: 0, byCategory: {}, nextEvent: null,
+      };
+      map.set(e.venueKey, v);
+    }
+    v.events++;
+    v.byCategory[e.category] = (v.byCategory[e.category] || 0) + 1;
+    if (!v.nextEvent || e.start < v.nextEvent) v.nextEvent = e.start;
+    add(v.phones, e.phone);
+    add(v.emails, e.email);
+    add(v.websites, e.website);
+    add(v.registrationSites, e.registrationSite);
+  }
+
+  return [...map.values()].sort(
+    (a, b) => a.metro.localeCompare(b.metro) || b.events - a.events || a.venue.localeCompare(b.venue),
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -368,6 +425,7 @@ async function main() {
     defaultTypes: config.defaultTypes,
     metros,
     failures,
+    venues: buildVenues(events),
     events,
   };
 
@@ -394,4 +452,4 @@ if (runDirectly) {
   });
 }
 
-export { localStart, toVenueLocal, normalise, TYPE_MAP };
+export { localStart, toVenueLocal, normalise, buildVenues, pickDivisions, TYPE_MAP };
